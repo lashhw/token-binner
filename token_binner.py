@@ -58,16 +58,19 @@ def main(args):
     )
 
     category_indices = defaultdict(list)
+    less_than_4k_count = 0
     
     for i, category_info in enumerate(classified_dataset.select_columns(['token_length_category'])):
         category_name = category_info['token_length_category']
-        category_indices[category_name].append(i)
+        if category_name == '<4k':
+            less_than_4k_count += 1
+        else:
+            category_indices[category_name].append(i)
 
+    print(f"<4k: {less_than_4k_count:,}")
     for category, indices in category_indices.items():
         print(f"{category}: {len(indices):,}")
-    
-    del category_indices['<4k']
-    
+
     with open(args.output_file, 'w') as f:
         json.dump(category_indices, f)
 

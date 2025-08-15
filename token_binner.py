@@ -14,7 +14,6 @@ def get_args():
 
     parser.add_argument('--num_samples', type=int, default=-1)
     parser.add_argument('--num_proc', type=int, default=os.cpu_count() // 2)
-
     parser.add_argument('--output_file', type=str, default="indices.json")
 
     return parser.parse_args()

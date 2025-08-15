@@ -66,6 +66,8 @@ def main(args):
     for category, indices in category_indices.items():
         print(f"{category}: {len(indices):,}")
     
+    del category_indices['<4k']
+    
     with open(args.output_file, 'w') as f:
         json.dump(category_indices, f)
 

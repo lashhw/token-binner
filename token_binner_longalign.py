@@ -66,7 +66,7 @@ def classify_by_token_length(batch, tokenizer):
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
-    dataset = load_dataset('THUDM/LongAlign-10k', split='train')
+    dataset = load_dataset("THUDM/LongAlign-10k", split="train")
     if args.num_samples > 0:
         dataset = dataset.select(range(args.num_samples))
 

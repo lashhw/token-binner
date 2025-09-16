@@ -9,7 +9,6 @@ def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
     parser.add_argument('--model_name', type=str, default="meta-llama/Llama-3.2-1B-Instruct")
-    parser.add_argument('--dataset_name', type=str, default="HuggingFaceFW/fineweb-edu")
     parser.add_argument('--dataset_subset', type=str, default="sample-10BT")
 
     parser.add_argument('--num_samples', type=int, default=-1)
@@ -45,7 +44,7 @@ def classify_by_token_length(batch, tokenizer):
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
-    dataset = load_dataset(args.dataset_name, name=args.dataset_subset, split="train")
+    dataset = load_dataset("HuggingFaceFW/fineweb-edu", name=args.dataset_subset, split="train")
     if args.num_samples > 0:
         dataset = dataset.select(range(args.num_samples))
 

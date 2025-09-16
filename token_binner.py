@@ -5,6 +5,7 @@ from collections import defaultdict
 from datasets import load_dataset
 from transformers import AutoTokenizer
 
+
 def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
@@ -16,6 +17,7 @@ def get_args():
     parser.add_argument('--output_file', type=str, default="indices.json")
 
     return parser.parse_args()
+
 
 def get_token_length_category(length: int) -> str:
     if 1 <= length < 4096:
@@ -35,11 +37,13 @@ def get_token_length_category(length: int) -> str:
     else:
         assert False
 
+
 def classify_by_token_length(batch, tokenizer):
     tokenized_texts = tokenizer(batch['text'])
     lengths = [len(ids) for ids in tokenized_texts['input_ids']]
     batch['token_length_category'] = [get_token_length_category(l) for l in lengths]
     return batch
+
 
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -72,6 +76,7 @@ def main(args):
 
     with open(args.output_file, 'w') as f:
         json.dump(category_indices, f)
+
 
 if __name__ == '__main__':
     args = get_args()

@@ -33,10 +33,8 @@ def get_token_length_category(length: int) -> str:
         return "32-64k"
     elif length <= 131072:
         return "64-128k"
-    elif length > 131072:
-        return ">128k"
     else:
-        assert False
+        return ">128k"
 
 
 def classify_by_token_length(batch, tokenizer):

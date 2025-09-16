@@ -53,7 +53,6 @@ def main(args):
         dataset = dataset.select(range(args.num_samples))
 
     processing_function = lambda batch: classify_by_token_length(batch, tokenizer)
-    
     classified_dataset = dataset.map(
         processing_function,
         batched=True,

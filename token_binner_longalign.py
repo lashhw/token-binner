@@ -19,17 +19,19 @@ def get_args():
 
 
 def get_token_length_category(length: int) -> str:
-    if 1 <= length <= 4096:
+    if length < 1:
+        assert False
+    elif length <= 4096:
         return "<=4k"
-    elif 4096 < length <= 8192:
+    elif length <= 8192:
         return "4-8k"
-    elif 8192 < length <= 16384:
+    elif length <= 16384:
         return "8-16k"
-    elif 16384 < length <= 32768:
+    elif length <= 32768:
         return "16-32k"
-    elif 32768 < length <= 65536:
+    elif length <= 65536:
         return "32-64k"
-    elif 65536 < length <= 131072:
+    elif length <= 131072:
         return "64-128k"
     elif length > 131072:
         return ">128k"

@@ -41,8 +41,7 @@ def get_token_length_category(length: int) -> str:
 def classify_by_token_length(batch, tokenizer):
     tokenized_texts = tokenizer(batch['text'])
     lengths = [len(ids) for ids in tokenized_texts['input_ids']]
-    batch['token_length_category'] = [get_token_length_category(l) for l in lengths]
-    return batch
+    return {'token_length_category': [get_token_length_category(l) for l in lengths]}
 
 
 def main(args):

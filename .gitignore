@@ -1,3 +1,4 @@
 *
 !.gitignore
 !token_binner.py
+!token_binner_longalign.py

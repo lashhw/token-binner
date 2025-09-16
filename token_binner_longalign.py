@@ -42,15 +42,21 @@ def classify_by_token_length(batch, tokenizer):
 
     for messages in batch['messages']:
         assert len(messages) == 2
+
         user_message = messages[0]
         assistant_message = messages[1]
+
+        assert set(user_message.keys()) == {'role', 'content'}
+        assert set(assistant_message.keys()) == {'role', 'content'}
+
         assert user_message['role'] == 'user'
         assert assistant_message['role'] == 'assistant'
-        
+
         question_text = user_message['content']
         answer_text = assistant_message['content']
-        
-        texts.append(question_text + answer_text)
+        text = question_text + answer_text
+
+        texts.append(text)
 
     tokenized_texts = tokenizer(texts)
     lengths = [len(ids) for ids in tokenized_texts['input_ids']]

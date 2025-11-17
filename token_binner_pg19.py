@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+import random
 from collections import defaultdict
 from datasets import load_dataset
 from transformers import AutoTokenizer
@@ -66,6 +67,10 @@ def main(args):
             less_than_4k_count += 1
         else:
             category_indices[category_name].append(i)
+
+    rng = random.Random(42)
+    for indices in category_indices.values():
+        rng.shuffle(indices)
 
     print(f"<4k: {less_than_4k_count:,}")
     for category, indices in category_indices.items():

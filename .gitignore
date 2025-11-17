@@ -1,5 +1,6 @@
 *
 !.gitignore
 !requirements.txt
-!token_binner.py
 !token_binner_longalign.py
+!token_binner_pg19.py
+!token_binner.py

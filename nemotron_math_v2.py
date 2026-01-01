@@ -104,8 +104,7 @@ def main(args):
     error_count = 0
     rng = random.Random(42)
 
-    iterator = enumerate(dataset)
-    progress = tqdm(iterator)
+    progress = tqdm(enumerate(dataset))
     for i, example in progress:
         category_info = classify_by_token_length(example, tokenizer)
         if category_info is None:

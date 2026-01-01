@@ -36,6 +36,7 @@ def get_args():
 
     parser.add_argument('--model_name', type=str, default="Qwen/Qwen3-4B-Thinking-2507")
     parser.add_argument('--dataset_splits', type=str, default="high_part00,high_part01,high_part02")
+    parser.add_argument('--batch_size', type=int, default=32)
 
     return parser.parse_args()
 
@@ -49,7 +50,7 @@ def get_token_length_category(length: int) -> str:
     return DEFAULT_CATEGORY
 
 
-def classify_by_token_length(example, tokenizer):
+def build_chat_messages(example):
     try:
         messages = example["messages"]
         assert isinstance(messages, list) and len(messages) == 2
@@ -70,17 +71,10 @@ def classify_by_token_length(example, tokenizer):
         return None
 
     assistant_content = f"<think>{assistant_msg['reasoning_content']}</think>{assistant_msg['content']}"
-    chat_messages = [
+    return [
         {"role": user_msg["role"], "content": user_msg["content"]},
         {"role": assistant_msg["role"], "content": assistant_content},
     ]
-    input_ids = tokenizer.apply_chat_template(
-        chat_messages,
-        tokenize=True,
-        add_generation_prompt=False,
-    )
-    token_length = len(input_ids)
-    return get_token_length_category(token_length), token_length
 
 
 def update_progress(progress, category_counts, error_count):
@@ -88,6 +82,38 @@ def update_progress(progress, category_counts, error_count):
         **{category: category_counts[category] for category in ALL_CATEGORIES},
         "error": error_count,
     })
+
+
+def process_batch(batch, tokenizer, category_indices, category_seen_counts, rng):
+    chat_messages_list = [chat_messages for _, _, chat_messages in batch]
+    texts = [
+        tokenizer.apply_chat_template(
+            chat_messages,
+            tokenize=False,
+            add_generation_prompt=False,
+        )
+        for chat_messages in chat_messages_list
+    ]
+    tokenized = tokenizer(texts, add_special_tokens=False)
+    lengths = [len(ids) for ids in tokenized["input_ids"]]
+
+    for (row_id, example, _), token_length in zip(batch, lengths):
+        category_name = get_token_length_category(token_length)
+        category_seen_counts[category_name] += 1
+
+        if category_name in OUTPUT_FILES:
+            example["original_row_id"] = row_id
+            example["token_length"] = token_length
+
+            target_count = TARGET_COUNTS[category_name]
+            reservoir = category_indices[category_name]
+
+            if len(reservoir) < target_count:
+                reservoir.append(example)
+            else:
+                j = rng.randint(0, category_seen_counts[category_name] - 1)
+                if j < target_count:
+                    reservoir[j] = example
 
 
 def main(args):
@@ -102,31 +128,27 @@ def main(args):
 
     for dataset_split in dataset_splits:
         dataset = load_dataset("nvidia/Nemotron-Math-v2", split=dataset_split, streaming=True)
-        progress = tqdm(enumerate(dataset), desc=dataset_split)
+        batch = []
+        seen_count = 0
+
+        progress = tqdm(enumerate(dataset), desc=dataset_split, mininterval=1.0)
         for i, example in progress:
-            category_info = classify_by_token_length(example, tokenizer)
-            if category_info is None:
+            seen_count += 1
+            chat_messages = build_chat_messages(example)
+            if chat_messages is None:
                 error_count += 1
                 update_progress(progress, category_seen_counts, error_count)
                 continue
 
-            category_name, token_length = category_info
-            category_seen_counts[category_name] += 1
+            batch.append((i, example, chat_messages))
+            if len(batch) >= args.batch_size:
+                process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
+                batch = []
 
-            if category_name in OUTPUT_FILES:
-                example["original_row_id"] = i
-                example["token_length"] = token_length
+            update_progress(progress, category_seen_counts, error_count)
 
-                target_count = TARGET_COUNTS[category_name]
-                reservoir = category_indices[category_name]
-
-                if len(reservoir) < target_count:
-                    reservoir.append(example)
-                else:
-                    j = rng.randint(0, category_seen_counts[category_name] - 1)
-                    if j < target_count:
-                        reservoir[j] = example
-
+        if batch:
+            process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
             update_progress(progress, category_seen_counts, error_count)
 
     for category, output_path in OUTPUT_FILES.items():

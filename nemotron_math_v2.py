@@ -127,6 +127,7 @@ def main(args):
     for dataset_split in dataset_splits:
         dataset = load_dataset("nvidia/Nemotron-Math-v2", split=dataset_split, streaming=True)
         batch = []
+
         progress = tqdm(dataset, desc=dataset_split, mininterval=1.0)
         for example in progress:
             chat_messages = build_chat_messages(example)

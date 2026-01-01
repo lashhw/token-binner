@@ -119,16 +119,18 @@ def main(args):
 
         example["original_row_id"] = i
         example["token_length"] = token_length
-        example["token_length_category"] = category_name
         category_seen_counts[category_name] += 1
+
         target_count = TARGET_COUNTS[category_name]
         reservoir = category_indices[category_name]
+
         if len(reservoir) < target_count:
             reservoir.append(example)
         else:
             j = rng.randint(0, category_seen_counts[category_name] - 1)
             if j < target_count:
                 reservoir[j] = example
+
         update_progress(progress, error_count, category_indices)
 
     for category in OUTPUT_FILES:

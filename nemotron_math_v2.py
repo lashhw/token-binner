@@ -85,8 +85,8 @@ def classify_by_token_length(example, tokenizer):
 
 def update_progress(progress, error_count, category_counts):
     progress.set_postfix({
-        "errors": error_count,
         **{category: category_counts[category] for category in ALL_CATEGORIES},
+        "error": error_count,
     })
 
 

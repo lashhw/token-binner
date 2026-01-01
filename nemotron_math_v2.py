@@ -7,9 +7,6 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
-DATASET_NAME = "nvidia/Nemotron-Math-v2"
-SPLIT = "medium"
-
 OUTPUT_FILES = {
     "4-8k": "nemotron_math_v2_4k.jsonl",
     "8-16k": "nemotron_math_v2_8k.jsonl",
@@ -27,9 +24,8 @@ TARGET_COUNTS = {
 def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
-    parser.add_argument('--model_name', type=str, default="meta-llama/Llama-3.2-1B-Instruct")
-    parser.add_argument('--dataset_name', type=str, default=DATASET_NAME)
-    parser.add_argument('--split', type=str, default=SPLIT)
+    parser.add_argument('--model_name', type=str, default="Qwen/Qwen3-4B-Thinking-2507")
+    parser.add_argument('--dataset_subset', type=str, default="medium")
 
     parser.add_argument('--num_samples', type=int, default=-1)
     parser.add_argument('--output_dir', type=str, default=".")
@@ -73,8 +69,8 @@ def classify_by_token_length(example, tokenizer):
         assert assistant_msg["role"] == "assistant"
         assert isinstance(assistant_msg["content"], str)
         assert isinstance(assistant_msg["reasoning_content"], str)
-    except (AssertionError, KeyError, TypeError):
-        return None, None
+    except:
+        return None
 
     chat_messages = [
         {"role": user_msg["role"], "content": user_msg["content"]},
@@ -86,70 +82,78 @@ def classify_by_token_length(example, tokenizer):
         add_generation_prompt=False,
     )
     token_length = len(input_ids)
-    return get_token_length_category(token_length), token_length
+    return {
+        'token_length_category': get_token_length_category(token_length),
+        'token_length': token_length,
+    }
 
 
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
-    dataset = load_dataset(args.dataset_name, split=args.split, streaming=True)
+    dataset = load_dataset("nvidia/Nemotron-Math-v2", split=args.dataset_subset, streaming=True)
 
     os.makedirs(args.output_dir, exist_ok=True)
     output_paths = {
         category: os.path.join(args.output_dir, filename)
         for category, filename in OUTPUT_FILES.items()
     }
-    reservoirs = {category: [] for category in OUTPUT_FILES}
-    seen_counts = defaultdict(int)
+    category_indices = defaultdict(list)
+    category_seen_counts = defaultdict(int)
+    less_than_4k_count = 0
     error_count = 0
     rng = random.Random(42)
 
-    try:
-        iterator = enumerate(dataset)
-        total = args.num_samples if args.num_samples > 0 else None
-        progress = tqdm(iterator, total=total)
-        for i, example in progress:
-            category, token_length = classify_by_token_length(example, tokenizer)
-            if category is None:
-                error_count += 1
-                progress.set_postfix(errors=error_count)
-                if args.num_samples > 0 and i + 1 >= args.num_samples:
-                    break
-                continue
-
-            if category not in OUTPUT_FILES:
-                if args.num_samples > 0 and i + 1 >= args.num_samples:
-                    break
-                continue
-
-            example["original_row_id"] = i
-            example["token_length"] = token_length
-            example["token_length_category"] = category
-            seen_counts[category] += 1
-            target_count = TARGET_COUNTS[category]
-            reservoir = reservoirs[category]
-            if len(reservoir) < target_count:
-                reservoir.append(example)
-            else:
-                j = rng.randint(0, seen_counts[category] - 1)
-                if j < target_count:
-                    reservoir[j] = example
-
+    iterator = enumerate(dataset)
+    total = args.num_samples if args.num_samples > 0 else None
+    progress = tqdm(iterator, total=total)
+    for i, example in progress:
+        category_info = classify_by_token_length(example, tokenizer)
+        if category_info is None:
+            error_count += 1
+            progress.set_postfix(errors=error_count)
             if args.num_samples > 0 and i + 1 >= args.num_samples:
                 break
-    finally:
-        pass
+            continue
 
-    for category, samples in reservoirs.items():
+        category_name = category_info['token_length_category']
+        token_length = category_info['token_length']
+        if category_name == '<4k':
+            less_than_4k_count += 1
+            if args.num_samples > 0 and i + 1 >= args.num_samples:
+                break
+            continue
+
+        if category_name not in OUTPUT_FILES:
+            if args.num_samples > 0 and i + 1 >= args.num_samples:
+                break
+            continue
+
+        example["original_row_id"] = i
+        example["token_length"] = token_length
+        example["token_length_category"] = category_name
+        category_seen_counts[category_name] += 1
+        target_count = TARGET_COUNTS[category_name]
+        reservoir = category_indices[category_name]
+        if len(reservoir) < target_count:
+            reservoir.append(example)
+        else:
+            j = rng.randint(0, category_seen_counts[category_name] - 1)
+            if j < target_count:
+                reservoir[j] = example
+
+        if args.num_samples > 0 and i + 1 >= args.num_samples:
+            break
+
+    for category in OUTPUT_FILES:
         output_path = output_paths[category]
         with open(output_path, "w", encoding="utf-8") as output_file:
-            for sample in samples:
+            for sample in category_indices[category]:
                 output_file.write(json.dumps(sample, ensure_ascii=False) + "\n")
 
-    for category, samples in reservoirs.items():
+    print(f"<4k: {less_than_4k_count:,}")
+    for category, samples in category_indices.items():
         print(f"{category}: {len(samples):,}")
-    for category, path in output_paths.items():
-        print(f"Wrote {category} to {path}")
 
 
 if __name__ == '__main__':

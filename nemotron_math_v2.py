@@ -83,7 +83,7 @@ def classify_by_token_length(example, tokenizer):
     return get_token_length_category(token_length), token_length
 
 
-def update_progress(progress, error_count, category_counts):
+def update_progress(progress, category_counts, error_count):
     progress.set_postfix({
         **{category: category_counts[category] for category in ALL_CATEGORIES},
         "error": error_count,
@@ -97,7 +97,6 @@ def main(args):
 
     category_indices = defaultdict(list)
     category_seen_counts = defaultdict(int)
-    less_than_4k_count = 0
     error_count = 0
     rng = random.Random(42)
 
@@ -108,15 +107,13 @@ def main(args):
             category_info = classify_by_token_length(example, tokenizer)
             if category_info is None:
                 error_count += 1
-                update_progress(progress, error_count, category_seen_counts)
+                update_progress(progress, category_seen_counts, error_count)
                 continue
 
             category_name, token_length = category_info
             category_seen_counts[category_name] += 1
 
-            if category_name == '<4k':
-                less_than_4k_count += 1
-            elif category_name in OUTPUT_FILES:
+            if category_name in OUTPUT_FILES:
                 example["original_row_id"] = i
                 example["token_length"] = token_length
 
@@ -130,17 +127,12 @@ def main(args):
                     if j < target_count:
                         reservoir[j] = example
 
-            update_progress(progress, error_count, category_seen_counts)
+            update_progress(progress, category_seen_counts, error_count)
 
-    for category in OUTPUT_FILES:
-        output_path = OUTPUT_FILES[category]
+    for category, output_path in OUTPUT_FILES.items():
         with open(output_path, "w", encoding="utf-8") as output_file:
             for sample in category_indices[category]:
                 output_file.write(json.dumps(sample, ensure_ascii=False) + "\n")
-
-    print(f"<4k: {less_than_4k_count:,}")
-    for category, samples in category_indices.items():
-        print(f"{category}: {len(samples):,}")
 
 
 if __name__ == '__main__':

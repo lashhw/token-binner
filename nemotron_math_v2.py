@@ -1,4 +1,3 @@
-import os
 import json
 import argparse
 import random
@@ -85,7 +84,7 @@ def update_progress(progress, category_counts, error_count):
 
 
 def process_batch(batch, tokenizer, category_indices, category_seen_counts, rng):
-    chat_messages_list = [chat_messages for _, _, chat_messages in batch]
+    chat_messages_list = [chat_messages for _, chat_messages in batch]
     texts = [
         tokenizer.apply_chat_template(
             chat_messages,
@@ -97,12 +96,11 @@ def process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
     tokenized = tokenizer(texts, add_special_tokens=False)
     lengths = [len(ids) for ids in tokenized["input_ids"]]
 
-    for (row_id, example, _), token_length in zip(batch, lengths):
+    for (example, _), token_length in zip(batch, lengths):
         category_name = get_token_length_category(token_length)
         category_seen_counts[category_name] += 1
 
         if category_name in OUTPUT_FILES:
-            example["original_row_id"] = row_id
             example["token_length"] = token_length
 
             target_count = TARGET_COUNTS[category_name]
@@ -129,18 +127,15 @@ def main(args):
     for dataset_split in dataset_splits:
         dataset = load_dataset("nvidia/Nemotron-Math-v2", split=dataset_split, streaming=True)
         batch = []
-        seen_count = 0
-
-        progress = tqdm(enumerate(dataset), desc=dataset_split, mininterval=1.0)
-        for i, example in progress:
-            seen_count += 1
+        progress = tqdm(dataset, desc=dataset_split, mininterval=1.0)
+        for example in progress:
             chat_messages = build_chat_messages(example)
             if chat_messages is None:
                 error_count += 1
                 update_progress(progress, category_seen_counts, error_count)
                 continue
 
-            batch.append((i, example, chat_messages))
+            batch.append((example, chat_messages))
             if len(batch) >= args.batch_size:
                 process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
                 batch = []

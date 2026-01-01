@@ -76,9 +76,9 @@ def build_chat_messages(example):
     ]
 
 
-def update_progress(progress, category_counts, error_count):
+def update_progress(progress, category_seen_counts, error_count):
     progress.set_postfix({
-        **{category: category_counts[category] for category in ALL_CATEGORIES},
+        **{category: category_seen_counts[category] for category in ALL_CATEGORIES},
         "error": error_count,
     })
 

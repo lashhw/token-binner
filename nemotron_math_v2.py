@@ -35,7 +35,7 @@ def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
     parser.add_argument('--model_name', type=str, default="Qwen/Qwen3-4B-Thinking-2507")
-    parser.add_argument('--dataset_subset', type=str, default="medium")
+    parser.add_argument('--dataset_splits', type=str, default="high_part00,high_part01,high_part02")
 
     return parser.parse_args()
 
@@ -93,7 +93,7 @@ def update_progress(progress, error_count, category_counts):
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
-    dataset = load_dataset("nvidia/Nemotron-Math-v2", split=args.dataset_subset, streaming=True)
+    dataset_splits = args.dataset_splits.split(",")
 
     category_indices = defaultdict(list)
     category_seen_counts = defaultdict(int)
@@ -101,34 +101,36 @@ def main(args):
     error_count = 0
     rng = random.Random(42)
 
-    progress = tqdm(enumerate(dataset))
-    for i, example in progress:
-        category_info = classify_by_token_length(example, tokenizer)
-        if category_info is None:
-            error_count += 1
-            update_progress(progress, error_count, category_indices)
-            continue
+    for dataset_split in dataset_splits:
+        dataset = load_dataset("nvidia/Nemotron-Math-v2", split=dataset_split, streaming=True)
+        progress = tqdm(enumerate(dataset), desc=dataset_split)
+        for i, example in progress:
+            category_info = classify_by_token_length(example, tokenizer)
+            if category_info is None:
+                error_count += 1
+                update_progress(progress, error_count, category_seen_counts)
+                continue
 
-        category_name, token_length = category_info
-        category_seen_counts[category_name] += 1
+            category_name, token_length = category_info
+            category_seen_counts[category_name] += 1
 
-        if category_name == '<4k':
-            less_than_4k_count += 1
-        elif category_name in OUTPUT_FILES:
-            example["original_row_id"] = i
-            example["token_length"] = token_length
+            if category_name == '<4k':
+                less_than_4k_count += 1
+            elif category_name in OUTPUT_FILES:
+                example["original_row_id"] = i
+                example["token_length"] = token_length
 
-            target_count = TARGET_COUNTS[category_name]
-            reservoir = category_indices[category_name]
+                target_count = TARGET_COUNTS[category_name]
+                reservoir = category_indices[category_name]
 
-            if len(reservoir) < target_count:
-                reservoir.append(example)
-            else:
-                j = rng.randint(0, category_seen_counts[category_name] - 1)
-                if j < target_count:
-                    reservoir[j] = example
+                if len(reservoir) < target_count:
+                    reservoir.append(example)
+                else:
+                    j = rng.randint(0, category_seen_counts[category_name] - 1)
+                    if j < target_count:
+                        reservoir[j] = example
 
-        update_progress(progress, error_count, category_seen_counts)
+            update_progress(progress, error_count, category_seen_counts)
 
     for category in OUTPUT_FILES:
         output_path = OUTPUT_FILES[category]

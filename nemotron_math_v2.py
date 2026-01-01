@@ -83,7 +83,7 @@ def update_progress(progress, category_seen_counts, error_count):
     })
 
 
-def process_batch(batch, tokenizer, category_indices, category_seen_counts, rng):
+def process_batch(batch, tokenizer, category_reservoirs, category_seen_counts, rng):
     chat_messages_list = [chat_messages for _, chat_messages in batch]
     texts = [
         tokenizer.apply_chat_template(
@@ -104,7 +104,7 @@ def process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
             example["token_length"] = token_length
 
             target_count = TARGET_COUNTS[category_name]
-            reservoir = category_indices[category_name]
+            reservoir = category_reservoirs[category_name]
 
             if len(reservoir) < target_count:
                 reservoir.append(example)
@@ -119,7 +119,7 @@ def main(args):
 
     dataset_splits = args.dataset_splits.split(",")
 
-    category_indices = defaultdict(list)
+    category_reservoirs = defaultdict(list)
     category_seen_counts = defaultdict(int)
     error_count = 0
     rng = random.Random(42)
@@ -138,18 +138,18 @@ def main(args):
 
             batch.append((example, chat_messages))
             if len(batch) >= args.batch_size:
-                process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
+                process_batch(batch, tokenizer, category_reservoirs, category_seen_counts, rng)
                 batch = []
 
             update_progress(progress, category_seen_counts, error_count)
 
         if batch:
-            process_batch(batch, tokenizer, category_indices, category_seen_counts, rng)
+            process_batch(batch, tokenizer, category_reservoirs, category_seen_counts, rng)
             update_progress(progress, category_seen_counts, error_count)
 
     for category, output_path in OUTPUT_FILES.items():
         with open(output_path, "w", encoding="utf-8") as output_file:
-            for sample in category_indices[category]:
+            for sample in category_reservoirs[category]:
                 output_file.write(json.dumps(sample, ensure_ascii=False) + "\n")
 
 

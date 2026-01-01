@@ -28,9 +28,6 @@ def get_args():
     parser.add_argument('--model_name', type=str, default="Qwen/Qwen3-4B-Thinking-2507")
     parser.add_argument('--dataset_subset', type=str, default="medium")
 
-    parser.add_argument('--num_samples', type=int, default=-1)
-    parser.add_argument('--output_dir', type=str, default=".")
-
     return parser.parse_args()
 
 
@@ -89,16 +86,18 @@ def classify_by_token_length(example, tokenizer):
     }
 
 
+def update_progress(progress, error_count, category_indices):
+    progress.set_postfix({
+        "errors": error_count,
+        **{category: len(category_indices[category]) for category in OUTPUT_FILES},
+    })
+
+
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     dataset = load_dataset("nvidia/Nemotron-Math-v2", split=args.dataset_subset, streaming=True)
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    output_paths = {
-        category: os.path.join(args.output_dir, filename)
-        for category, filename in OUTPUT_FILES.items()
-    }
     category_indices = defaultdict(list)
     category_seen_counts = defaultdict(int)
     less_than_4k_count = 0
@@ -106,28 +105,21 @@ def main(args):
     rng = random.Random(42)
 
     iterator = enumerate(dataset)
-    total = args.num_samples if args.num_samples > 0 else None
-    progress = tqdm(iterator, total=total)
+    progress = tqdm(iterator)
     for i, example in progress:
         category_info = classify_by_token_length(example, tokenizer)
         if category_info is None:
             error_count += 1
-            progress.set_postfix(errors=error_count)
-            if args.num_samples > 0 and i + 1 >= args.num_samples:
-                break
+            update_progress(progress, error_count, category_indices)
             continue
 
         category_name = category_info['token_length_category']
         token_length = category_info['token_length']
         if category_name == '<4k':
             less_than_4k_count += 1
-            if args.num_samples > 0 and i + 1 >= args.num_samples:
-                break
             continue
 
         if category_name not in OUTPUT_FILES:
-            if args.num_samples > 0 and i + 1 >= args.num_samples:
-                break
             continue
 
         example["original_row_id"] = i
@@ -142,12 +134,10 @@ def main(args):
             j = rng.randint(0, category_seen_counts[category_name] - 1)
             if j < target_count:
                 reservoir[j] = example
-
-        if args.num_samples > 0 and i + 1 >= args.num_samples:
-            break
+        update_progress(progress, error_count, category_indices)
 
     for category in OUTPUT_FILES:
-        output_path = output_paths[category]
+        output_path = OUTPUT_FILES[category]
         with open(output_path, "w", encoding="utf-8") as output_file:
             for sample in category_indices[category]:
                 output_file.write(json.dumps(sample, ensure_ascii=False) + "\n")

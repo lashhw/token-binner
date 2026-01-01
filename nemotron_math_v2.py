@@ -13,13 +13,22 @@ OUTPUT_FILES = {
     "16-32k": "nemotron_math_v2_16k.jsonl",
     "32-64k": "nemotron_math_v2_32k.jsonl",
 }
-
 TARGET_COUNTS = {
     "4-8k": 4000,
     "8-16k": 2000,
     "16-32k": 1000,
     "32-64k": 500,
 }
+TOKEN_BINS = [
+    (4096, "<4k"),
+    (8192, "4-8k"),
+    (16384, "8-16k"),
+    (32768, "16-32k"),
+    (65536, "32-64k"),
+    (131072, "64-128k"),
+]
+DEFAULT_CATEGORY = ">=128k"
+ALL_CATEGORIES = [label for _, label in TOKEN_BINS] + [DEFAULT_CATEGORY]
 
 
 def get_args():
@@ -34,20 +43,10 @@ def get_args():
 def get_token_length_category(length: int) -> str:
     if length < 1:
         assert False
-    elif length < 4096:
-        return "<4k"
-    elif length < 8192:
-        return "4-8k"
-    elif length < 16384:
-        return "8-16k"
-    elif length < 32768:
-        return "16-32k"
-    elif length < 65536:
-        return "32-64k"
-    elif length < 131072:
-        return "64-128k"
-    else:
-        return ">=128k"
+    for upper_bound, label in TOKEN_BINS:
+        if length < upper_bound:
+            return label
+    return DEFAULT_CATEGORY
 
 
 def classify_by_token_length(example, tokenizer):
@@ -83,10 +82,10 @@ def classify_by_token_length(example, tokenizer):
     return get_token_length_category(token_length), token_length
 
 
-def update_progress(progress, error_count, category_indices):
+def update_progress(progress, error_count, category_counts):
     progress.set_postfix({
         "errors": error_count,
-        **{category: len(category_indices[category]) for category in OUTPUT_FILES},
+        **{category: category_counts[category] for category in ALL_CATEGORIES},
     })
 
 
@@ -110,28 +109,25 @@ def main(args):
             continue
 
         category_name, token_length = category_info
-        if category_name == '<4k':
-            less_than_4k_count += 1
-            continue
-
-        if category_name not in OUTPUT_FILES:
-            continue
-
-        example["original_row_id"] = i
-        example["token_length"] = token_length
         category_seen_counts[category_name] += 1
 
-        target_count = TARGET_COUNTS[category_name]
-        reservoir = category_indices[category_name]
+        if category_name == '<4k':
+            less_than_4k_count += 1
+        elif category_name in OUTPUT_FILES:
+            example["original_row_id"] = i
+            example["token_length"] = token_length
 
-        if len(reservoir) < target_count:
-            reservoir.append(example)
-        else:
-            j = rng.randint(0, category_seen_counts[category_name] - 1)
-            if j < target_count:
-                reservoir[j] = example
+            target_count = TARGET_COUNTS[category_name]
+            reservoir = category_indices[category_name]
 
-        update_progress(progress, error_count, category_indices)
+            if len(reservoir) < target_count:
+                reservoir.append(example)
+            else:
+                j = rng.randint(0, category_seen_counts[category_name] - 1)
+                if j < target_count:
+                    reservoir[j] = example
+
+        update_progress(progress, error_count, category_seen_counts)
 
     for category in OUTPUT_FILES:
         output_path = OUTPUT_FILES[category]

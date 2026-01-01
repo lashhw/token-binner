@@ -69,9 +69,10 @@ def classify_by_token_length(example, tokenizer):
     except:
         return None
 
+    assistant_content = f"<think>{assistant_msg['reasoning_content']}</think>{assistant_msg['content']}"
     chat_messages = [
         {"role": user_msg["role"], "content": user_msg["content"]},
-        {"role": assistant_msg["role"], "content": assistant_msg["content"]},
+        {"role": assistant_msg["role"], "content": assistant_content},
     ]
     input_ids = tokenizer.apply_chat_template(
         chat_messages,

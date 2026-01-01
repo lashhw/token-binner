@@ -80,10 +80,7 @@ def classify_by_token_length(example, tokenizer):
         add_generation_prompt=False,
     )
     token_length = len(input_ids)
-    return {
-        'token_length_category': get_token_length_category(token_length),
-        'token_length': token_length,
-    }
+    return get_token_length_category(token_length), token_length
 
 
 def update_progress(progress, error_count, category_indices):
@@ -112,8 +109,7 @@ def main(args):
             update_progress(progress, error_count, category_indices)
             continue
 
-        category_name = category_info['token_length_category']
-        token_length = category_info['token_length']
+        category_name, token_length = category_info
         if category_name == '<4k':
             less_than_4k_count += 1
             continue

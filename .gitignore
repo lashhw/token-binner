@@ -1,7 +1,0 @@
-*
-!.gitignore
-!nemotron_math_v2.py
-!requirements.txt
-!token_binner_longalign.py
-!token_binner_pg19.py
-!token_binner.py
